@@ -1,7 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { StoreService } from '../../services/store.service';
 import { InventoryItem, CreateOrderItem } from '../../models/order.model';
 
 @Component({
@@ -9,102 +10,158 @@ import { InventoryItem, CreateOrderItem } from '../../models/order.model';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="container mx-auto p-4">
-      <h2 class="text-2xl font-bold mb-4">Crear Nueva Orden</h2>
+    <div class="container mx-auto p-6 max-w-5xl">
+      <header class="mb-8 border-b border-slate-200 pb-6">
+        <h2 class="text-3xl font-black text-slate-800 tracking-tight">Nueva Venta</h2>
+        <p class="text-slate-500 mt-1">
+          Creando orden para <span class="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+            {{ storeService.selectedStore()?.name || 'Cargando...' }}
+          </span>
+        </p>
+      </header>
 
-      <!-- Store Selection -->
-      <div class="mb-6 flex gap-4 items-end">
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Tienda ID</label>
-          <input type="number" [(ngModel)]="storeId" class="mt-1 block w-32 border-gray-300 rounded-md shadow-sm border p-2">
+      <!-- Loading State -->
+      <div *ngIf="loading()" class="flex justify-center py-12">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+      </div>
+
+      <!-- Empty State -->
+      <div *ngIf="!loading() && inventory().length === 0" class="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300">
+        <p class="text-slate-400 italic">No hay inventario disponible en esta tienda.</p>
+        <button (click)="loadInventory()" class="mt-4 text-indigo-600 font-bold text-sm hover:underline">Reintentar</button>
+      </div>
+
+      <!-- Inventory Grid -->
+      <div *ngIf="!loading() && inventory().length > 0" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        <!-- Product List -->
+        <div class="lg:col-span-2 space-y-4">
+          <div *ngFor="let item of inventory()"
+               class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex justify-between items-center group">
+            <div>
+              <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{{ item.skuCode }}</p>
+              <h4 class="font-bold text-slate-800 text-lg">{{ item.productName }}</h4>
+              <div class="flex gap-3 mt-2 text-sm">
+                <span class="text-slate-500">Físico: <strong>{{ item.onHand }}</strong></span>
+                <span class="text-amber-600">Reservado: <strong>{{ item.reserved }}</strong></span>
+              </div>
+            </div>
+
+            <div class="flex flex-col items-end gap-2">
+              <span class="text-xl font-black" [class.text-rose-500]="(item.onHand - item.reserved) <= 0" [class.text-emerald-600]="(item.onHand - item.reserved) > 0">
+                {{ item.onHand - item.reserved }} <span class="text-xs font-medium text-slate-400">disp.</span>
+              </span>
+
+              <div class="flex items-center bg-slate-50 rounded-lg border border-slate-200">
+                <button (click)="decrement(item.skuId)" class="px-3 py-1 text-slate-500 hover:text-indigo-600 font-bold">-</button>
+                <input type="number" [ngModel]="cart[item.skuId]" (ngModelChange)="updateCart(item.skuId, $event)" min="0" [max]="item.onHand - item.reserved"
+                       class="w-12 text-center bg-transparent border-none focus:ring-0 font-bold text-slate-800 p-0">
+                <button (click)="increment(item.skuId, item.onHand - item.reserved)" class="px-3 py-1 text-slate-500 hover:text-indigo-600 font-bold">+</button>
+              </div>
+            </div>
+          </div>
         </div>
-        <button (click)="loadInventory()" 
-                class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-                [disabled]="loading">
-          {{ loading ? 'Cargando...' : 'Cargar Inventario' }}
-        </button>
-      </div>
 
-      <!-- Inventory Table -->
-      <div *ngIf="inventory.length > 0" class="mb-6">
-        <h3 class="text-lg font-semibold mb-2">Inventario Disponible</h3>
-        <table class="min-w-full bg-white border">
-          <thead>
-            <tr class="bg-gray-100">
-              <th class="p-2 border text-left">Producto</th>
-              <th class="p-2 border text-left">SKU</th>
-              <th class="p-2 border text-right">Stock Físico</th>
-              <th class="p-2 border text-right">Reservado</th>
-              <th class="p-2 border text-right">Disponible</th>
-              <th class="p-2 border text-center">Pedir</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let item of inventory">
-              <td class="p-2 border">{{ item.productName }}</td>
-              <td class="p-2 border">{{ item.skuCode }}</td>
-              <td class="p-2 border text-right">{{ item.onHand }}</td>
-              <td class="p-2 border text-right text-yellow-600">{{ item.reserved }}</td>
-              <td class="p-2 border text-right font-bold" [class.text-red-500]="(item.onHand - item.reserved) <= 0">
-                {{ item.onHand - item.reserved }}
-              </td>
-              <td class="p-2 border text-center">
-                <input type="number" [(ngModel)]="cart[item.skuId]" min="0" [max]="item.onHand - item.reserved"
-                       class="w-20 border rounded p-1 text-center">
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <!-- Cart Summary -->
+        <div class="lg:col-span-1">
+          <div class="bg-slate-900 text-white p-6 rounded-3xl sticky top-6 shadow-xl shadow-slate-200">
+            <h3 class="text-xl font-black mb-4">Resumen</h3>
 
-      <!-- Action -->
-      <div *ngIf="inventory.length > 0" class="flex justify-end">
-        <button (click)="submitOrder()" 
-                class="bg-green-600 text-white px-6 py-2 rounded text-lg font-bold hover:bg-green-700 disabled:opacity-50"
-                [disabled]="isCartEmpty() || processing">
-          {{ processing ? 'Procesando...' : 'Confirmar Orden' }}
-        </button>
-      </div>
+            <div class="space-y-3 mb-6">
+              <div *ngFor="let item of getCartItems()" class="flex justify-between text-sm">
+                <span class="text-slate-300">{{ item.name }} (x{{ item.qty }})</span>
+                <span class="font-bold text-white">Pending</span>
+              </div>
+              <p *ngIf="getCartItems().length === 0" class="text-slate-500 italic text-sm">El carrito está vacío.</p>
+            </div>
 
-      <!-- Feedback -->
-      <div *ngIf="message" class="mt-4 p-4 rounded" 
-           [ngClass]="success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
-        {{ message }}
+            <div class="border-t border-slate-700 pt-4 mt-4">
+              <div class="flex justify-between items-center mb-6">
+                <span class="text-slate-400">Total Items</span>
+                <span class="text-2xl font-black">{{ getTotalItems() }}</span>
+              </div>
+
+              <button (click)="submitOrder()"
+                      [disabled]="getTotalItems() === 0 || processing()"
+                      class="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center">
+                <span *ngIf="!processing()">Confirmar Orden ➔</span>
+                <div *ngIf="processing()" class="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              </button>
+            </div>
+
+            <!-- Feedback -->
+            <div *ngIf="message()" class="mt-4 p-3 rounded-lg text-xs font-medium"
+                 [ngClass]="success() ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'">
+              {{ message() }}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   `
 })
 export class OrderCreateComponent {
-  storeId: number = 1;
-  inventory: InventoryItem[] = [];
+  inventory = signal<InventoryItem[]>([]);
+  loading = signal<boolean>(false);
+  processing = signal<boolean>(false);
+  message = signal<string>('');
+  success = signal<boolean>(false);
+
   cart: { [skuId: number]: number } = {};
-  
-  loading = false;
-  processing = false;
-  message = '';
-  success = false;
 
-  constructor(private api: ApiService) {}
+  storeService = inject(StoreService);
+  private api = inject(ApiService);
 
-  loadInventory() {
-    this.loading = true;
-    this.message = '';
-    this.api.getInventory(this.storeId).subscribe({
+  constructor() {
+    // Auto-load when store changes
+    effect(() => {
+      const storeId = this.storeService.selectedStoreId();
+      untracked(() => {
+        this.loadInventory(storeId);
+      });
+    });
+  }
+
+  loadInventory(storeId?: number) {
+    const id = storeId || this.storeService.selectedStoreId();
+    this.loading.set(true);
+    this.message.set('');
+    this.cart = {}; // Reset cart
+
+    this.api.getInventory(id).subscribe({
       next: (data) => {
-        this.inventory = data;
-        this.cart = {}; // Reset cart
-        this.loading = false;
+        this.inventory.set(data);
+        this.loading.set(false);
       },
-      error: (err) => {
-        this.message = 'Error cargando inventario. Asegúrate que la API corre.';
-        this.success = false;
-        this.loading = false;
+      error: () => {
+        this.message.set('Error cargando inventario.');
+        this.loading.set(false);
       }
     });
   }
 
-  isCartEmpty(): boolean {
-    return Object.values(this.cart).every(q => !q || q <= 0);
+  increment(skuId: number, max: number) {
+    const current = this.cart[skuId] || 0;
+    if (current < max) this.cart[skuId] = current + 1;
+  }
+
+  decrement(skuId: number) {
+    const current = this.cart[skuId] || 0;
+    if (current > 0) this.cart[skuId] = current - 1;
+  }
+
+  updateCart(skuId: number, value: number) {
+    this.cart[skuId] = value;
+  }
+
+  getCartItems() {
+    return this.inventory()
+      .filter(i => this.cart[i.skuId] > 0)
+      .map(i => ({ name: i.productName, qty: this.cart[i.skuId] }));
+  }
+
+  getTotalItems() {
+    return Object.values(this.cart).reduce((a, b) => a + (b || 0), 0);
   }
 
   submitOrder() {
@@ -117,29 +174,20 @@ export class OrderCreateComponent {
 
     if (items.length === 0) return;
 
-    this.processing = true;
-    this.message = '';
+    this.processing.set(true);
+    this.message.set('');
 
-    this.api.createOrder({ storeId: this.storeId, items }).subscribe({
+    this.api.createOrder({ storeId: this.storeService.selectedStoreId(), items }).subscribe({
       next: (res) => {
-        this.success = true;
-        this.message = `Orden #${res.orderId} creada exitosamente! Estado: ${res.status}`;
-        this.processing = false;
-        this.loadInventory(); // Refresh stock
+        this.success.set(true);
+        this.message.set(`Orden #${res.orderId} creada!`);
+        this.processing.set(false);
+        this.loadInventory();
       },
       error: (err) => {
-        this.success = false;
-        this.processing = false;
-        if (err.status === 409) {
-          if (err.error.error === 'INSUFFICIENT_STOCK') {
-            this.message = 'Error: Stock insuficiente. Alguien más compró los items antes que tú.';
-          } else {
-            this.message = 'Error de conflicto (Idempotencia o Concurrencia). Intenta de nuevo.';
-          }
-        } else {
-          this.message = 'Error creando la orden. Revisa la consola.';
-        }
-        console.error(err);
+        this.success.set(false);
+        this.processing.set(false);
+        this.message.set(err.error?.message || 'Error procesando la orden.');
       }
     });
   }

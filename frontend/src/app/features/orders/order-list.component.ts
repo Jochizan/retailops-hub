@@ -1,6 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
+import { StoreService } from '../../services/store.service';
 import { Order } from '../../models/order.model';
 
 @Component({
@@ -8,69 +9,95 @@ import { Order } from '../../models/order.model';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="container mx-auto p-4">
-      <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-bold">Listado de Órdenes</h2>
-        <button (click)="refresh()" class="text-blue-600 underline">Refrescar</button>
+    <div class="container mx-auto p-6 space-y-6">
+      <div class="flex justify-between items-center">
+        <h2 class="text-3xl font-black text-slate-800 tracking-tight">Gestión de Órdenes</h2>
+        <button (click)="refresh()" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-colors">
+          Refrescar Datos
+        </button>
       </div>
 
-      <div *ngIf="loading" class="text-gray-500">Cargando órdenes...</div>
+      <div *ngIf="loading" class="flex justify-center py-20">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
 
-      <div *ngIf="!loading && orders.length === 0" class="text-gray-500">No hay órdenes registradas.</div>
+      <div *ngIf="!loading && orders.length === 0" class="text-center py-20 bg-white border rounded-3xl border-dashed border-slate-300">
+        <p class="text-slate-400 italic">No hay órdenes registradas en esta tienda.</p>
+      </div>
 
-      <table *ngIf="orders.length > 0" class="min-w-full bg-white border shadow-sm">
-        <thead>
-          <tr class="bg-gray-50 border-b">
-            <th class="p-3 text-left">ID</th>
-            <th class="p-3 text-left">Tienda</th>
-            <th class="p-3 text-left">Estado</th>
-            <th class="p-3 text-right">Total</th>
-            <th class="p-3 text-left">Fecha</th>
-            <th class="p-3 text-left">Items</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let order of orders" class="border-b hover:bg-gray-50">
-            <td class="p-3 font-mono text-sm">#{{ order.id }}</td>
-            <td class="p-3">{{ order.storeName }}</td>
-            <td class="p-3">
-              <span class="px-2 py-1 rounded text-xs font-bold"
-                    [ngClass]="{
-                      'bg-green-100 text-green-800': order.status === 'Confirmed',
-                      'bg-yellow-100 text-yellow-800': order.status === 'Reserved',
-                      'bg-gray-100 text-gray-800': order.status === 'Draft'
-                    }">
-                {{ order.status }}
-              </span>
-            </td>
-            <td class="p-3 text-right font-bold">\${{ order.totalAmount | number:'1.2-2' }}</td>
-            <td class="p-3 text-sm text-gray-600">{{ order.createdAt | date:'short' }}</td>
-            <td class="p-3 text-sm">
-              <ul class="list-disc list-inside">
-                <li *ngFor="let item of order.items">
+      <div *ngIf="!loading && orders.length > 0" class="grid gap-4">
+        <div *ngFor="let order of orders" 
+             class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow flex justify-between items-center">
+          
+          <div class="flex gap-6 items-center">
+            <div class="text-center bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
+              <p class="text-[10px] uppercase font-black text-slate-400">Orden</p>
+              <p class="font-mono font-bold text-slate-700">#{{ order.id }}</p>
+            </div>
+
+            <div>
+              <div class="flex items-center gap-3 mb-1">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest"
+                      [ngClass]="{
+                        'bg-emerald-100 text-emerald-700': order.status === 'Confirmed',
+                        'bg-amber-100 text-amber-700': order.status === 'Reserved',
+                        'bg-rose-100 text-rose-700': order.status === 'Cancelled',
+                        'bg-slate-100 text-slate-700': order.status === 'Draft'
+                      }">
+                  {{ order.status }}
+                </span>
+                <span class="text-xs text-slate-400 font-medium">{{ order.createdAt | date:'medium' }}</span>
+              </div>
+              <p class="text-slate-500 text-sm">Tienda: <span class="text-slate-800 font-bold">{{ order.storeName }}</span></p>
+              <div class="flex gap-2 mt-2">
+                <span *ngFor="let item of order.items" class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-bold">
                   {{ item.quantity }}x {{ item.skuCode }}
-                </li>
-              </ul>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-8">
+            <div class="text-right">
+              <p class="text-[10px] uppercase font-black text-slate-400">Total</p>
+              <p class="text-2xl font-black text-slate-800">\${{ order.totalAmount | number:'1.2-2' }}</p>
+            </div>
+
+            <!-- Lifecycle Actions -->
+            <div *ngIf="order.status === 'Reserved' && canManage()" class="flex gap-2 border-l border-slate-100 pl-6">
+              <button (click)="cancel(order.id)" 
+                      class="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors font-bold text-sm">
+                Cancelar
+              </button>
+              <button (click)="confirm(order.id)" 
+                      class="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   `
 })
 export class OrderListComponent implements OnInit {
   orders: Order[] = [];
   loading = false;
-
-  constructor(private api: ApiService) {}
+  private api = inject(ApiService);
+  private storeService = inject(StoreService);
 
   ngOnInit() {
     this.refresh();
   }
 
+  canManage(): boolean {
+    const role = this.storeService.userRole();
+    return role === 'admin' || role === 'manager';
+  }
+
   refresh() {
     this.loading = true;
-    this.api.getOrders().subscribe({
+    this.api.getOrders(this.storeService.selectedStoreId()).subscribe({
       next: (data) => {
         this.orders = data;
         this.loading = false;
@@ -80,5 +107,17 @@ export class OrderListComponent implements OnInit {
         this.loading = false;
       }
     });
+  }
+
+  confirm(id: number) {
+    if (confirm('¿Confirmar esta orden? El stock físico será descontado.')) {
+      this.api.confirmOrder(id).subscribe(() => this.refresh());
+    }
+  }
+
+  cancel(id: number) {
+    if (confirm('¿Cancelar esta orden? El stock reservado será liberado.')) {
+      this.api.cancelOrder(id).subscribe(() => this.refresh());
+    }
   }
 }

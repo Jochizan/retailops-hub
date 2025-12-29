@@ -4,7 +4,7 @@ using RetailOps.Application.Interfaces;
 namespace RetailOps.Api.Controllers
 {
     [ApiController]
-    [Route("inventory")]
+    [Route("api/[controller]")]
     public class InventoryController : ControllerBase
     {
         private readonly IInventoryService _inventoryService;

@@ -8,9 +8,11 @@ namespace RetailOps.Application
     {
         public static IServiceCollection AddApplication(this IServiceCollection services)
         {
-            services.AddScoped<IProductService, ProductService>();
-            services.AddScoped<IInventoryService, InventoryService>();
-            return services;
-        }
-    }
+                    services.AddScoped<IProductService, ProductService>();
+                    services.AddScoped<IInventoryService, InventoryService>();
+                            services.AddScoped<IOrderService, OrderService>();
+                            services.AddScoped<IReportsService, ReportsService>();
+                    
+                            return services;
+                        }    }
 }

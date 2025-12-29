@@ -12,8 +12,8 @@ using RetailOps.Infrastructure.Persistence;
 namespace RetailOps.Infrastructure.Migrations
 {
     [DbContext(typeof(RetailOpsDbContext))]
-    [Migration("20251228162719_AddAttributeTypesAndTrigger")]
-    partial class AddAttributeTypesAndTrigger
+    [Migration("20251228170043_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -53,9 +53,9 @@ namespace RetailOps.Infrastructure.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("attribute_types", null, t =>
+                    b.ToTable("AttributeTypes", null, t =>
                         {
-                            t.HasCheckConstraint("CK_attribute_types_scope", "Scope IN ('PRODUCT','SKUJSON')");
+                            t.HasCheckConstraint("CK_AttributeTypes_Scope", "Scope IN ('PRODUCT','SKUJSON')");
                         });
 
                     b.HasData(
@@ -117,7 +117,7 @@ namespace RetailOps.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AuditLogs");
+                    b.ToTable("AuditLogs", (string)null);
                 });
 
             modelBuilder.Entity("RetailOps.Domain.Entities.Inventory", b =>
@@ -153,7 +153,7 @@ namespace RetailOps.Infrastructure.Migrations
                     b.HasIndex("StoreId", "SkuId")
                         .IsUnique();
 
-                    b.ToTable("Inventory", t =>
+                    b.ToTable("Inventory", null, t =>
                         {
                             t.HasCheckConstraint("CK_Inventory_Available_NonNegative", "(OnHand - Reserved) >= 0");
 
@@ -161,6 +161,72 @@ namespace RetailOps.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_Inventory_Reserved_NonNegative", "Reserved >= 0");
                         });
+                });
+
+            modelBuilder.Entity("RetailOps.Domain.Entities.Order", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("StoreId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StoreId", "Status");
+
+                    b.ToTable("Orders", (string)null);
+                });
+
+            modelBuilder.Entity("RetailOps.Domain.Entities.OrderItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SkuId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SubTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("SkuId");
+
+                    b.ToTable("OrderItems", (string)null);
                 });
 
             modelBuilder.Entity("RetailOps.Domain.Entities.OutboxEvent", b =>
@@ -189,7 +255,7 @@ namespace RetailOps.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("OutboxEvents");
+                    b.ToTable("OutboxEvents", (string)null);
                 });
 
             modelBuilder.Entity("RetailOps.Domain.Entities.Product", b =>
@@ -221,7 +287,7 @@ namespace RetailOps.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Products");
+                    b.ToTable("Products", (string)null);
                 });
 
             modelBuilder.Entity("RetailOps.Domain.Entities.Sku", b =>
@@ -241,6 +307,10 @@ namespace RetailOps.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
@@ -251,9 +321,9 @@ namespace RetailOps.Infrastructure.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("skus", null, t =>
+                    b.ToTable("Skus", null, t =>
                         {
-                            t.HasCheckConstraint("CK_skus_attributes_isjson", "ISJSON(AttributesJson) = 1");
+                            t.HasCheckConstraint("CK_Skus_AttributesJson_IsJson", "ISJSON(AttributesJson) = 1");
                         });
                 });
 
@@ -280,7 +350,7 @@ namespace RetailOps.Infrastructure.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Stores");
+                    b.ToTable("Stores", (string)null);
                 });
 
             modelBuilder.Entity("RetailOps.Domain.Entities.Inventory", b =>
@@ -302,6 +372,36 @@ namespace RetailOps.Infrastructure.Migrations
                     b.Navigation("Store");
                 });
 
+            modelBuilder.Entity("RetailOps.Domain.Entities.Order", b =>
+                {
+                    b.HasOne("RetailOps.Domain.Entities.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Store");
+                });
+
+            modelBuilder.Entity("RetailOps.Domain.Entities.OrderItem", b =>
+                {
+                    b.HasOne("RetailOps.Domain.Entities.Order", "Order")
+                        .WithMany("Items")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RetailOps.Domain.Entities.Sku", "Sku")
+                        .WithMany()
+                        .HasForeignKey("SkuId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+
+                    b.Navigation("Sku");
+                });
+
             modelBuilder.Entity("RetailOps.Domain.Entities.Sku", b =>
                 {
                     b.HasOne("RetailOps.Domain.Entities.Product", "Product")
@@ -311,6 +411,11 @@ namespace RetailOps.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("RetailOps.Domain.Entities.Order", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("RetailOps.Domain.Entities.Product", b =>

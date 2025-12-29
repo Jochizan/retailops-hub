@@ -9,6 +9,7 @@ namespace RetailOps.Domain.Entities
         public int SkuId { get; set; }
         public int OnHand { get; set; }
         public int Reserved { get; set; }
+        public int ReorderPoint { get; set; }
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         public Store? Store { get; set; }

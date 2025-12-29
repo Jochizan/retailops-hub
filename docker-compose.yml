@@ -1,8 +1,7 @@
-version: '3.8'
 services:
-  sqlserver:
+  db:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: retailops_sql
+    container_name: retailops-db
     environment:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=RetailOps@2025!
@@ -10,6 +9,29 @@ services:
       - "1433:1433"
     volumes:
       - sqlvolume:/var/opt/mssql
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: retailops-api
+    depends_on:
+      - db
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=db;Database=RetailOpsDb;User Id=sa;Password=RetailOps@2025!;TrustServerCertificate=True;
+      - ASPNETCORE_HTTP_PORTS=8080
+    ports:
+      - "5000:8080"
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: retailops-web
+    depends_on:
+      - api
+    ports:
+      - "4200:80"
 
 volumes:
   sqlvolume:

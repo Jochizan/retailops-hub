@@ -8,6 +8,11 @@ using RetailOps.Application.Common.Interfaces;
 
 namespace RetailOps.Application.Services
 {
+    /// <summary>
+    /// Service responsible for querying inventory levels.
+    /// Note: Stock modifications (reservations) are handled by OrderService to ensure atomicity.
+    /// This service focuses on read operations.
+    /// </summary>
     public class InventoryService : IInventoryService
     {
         private readonly IRetailOpsDbContext _context;
@@ -17,6 +22,11 @@ namespace RetailOps.Application.Services
             _context = context;
         }
 
+        /// <summary>
+        /// Retrieves current inventory levels for a specific store.
+        /// </summary>
+        /// <param name="storeId">The Store ID to filter by.</param>
+        /// <returns>List of inventory records including product and SKU details.</returns>
         public async Task<List<InventoryDto>> GetInventoryAsync(int storeId)
         {
             var inventory = await _context.Inventory
